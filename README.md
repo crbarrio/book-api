@@ -48,10 +48,10 @@ El proyecto usa variables de entorno en `book-api/.env`:
 Valores actuales de ejemplo:
 
 ```env
-MONGODB_URI=mongodb://localhost:27017/book-api-nestjs
+DB_USER=your_username
+DB_PASS=your_password
+MONGODB_URI=mongodb://your_username:your_password@localhost:27017/book-api?authSource=admin
 PORT=3000
-DB_USER=dbuser
-DB_PASS=userpassword
 ```
 
 ## Puesta en marcha (orden obligatorio)
