@@ -6,6 +6,8 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 async function bootstrap() {
 	const app = await NestFactory.create(AppModule);
 
+	app.enableCors();
+
 	// Configuració de la ValidationPipe globalment per a tots els DTOs
 	app.useGlobalPipes(
 		new ValidationPipe({
@@ -17,16 +19,17 @@ async function bootstrap() {
 
 	// Configuració de Swagger
 	const config = new DocumentBuilder()
-		.setTitle('API de Llibres')
+		.setTitle('API de Llibres i Autenticació')
 		.setDescription(
-			`Una API REST per gestionar un catàleg de llibres amb NestJS i MongoDB`,
+			`Una API REST per gestionar un catàleg de llibres  amb autenticació JWT.`,
 		)
 		.setVersion('1.0')
-		.addTag('Llibres', 'Gestió del catàleg de llibres') // Afegim el tag que usem al controller
+		.addTag('Llibres', 'Gestió del catàleg de llibres')
+		.addTag('Autenticació', `Gestió de l'autenticació i usuaris`)
 		.build();
 
 	const document = SwaggerModule.createDocument(app, config);
-	SwaggerModule.setup('api-docs', app, document); // La documentació estarà disponible a /api-docs
+	SwaggerModule.setup('api-docs', app, document);
 
 	const PORT = process.env.PORT || 3000;
 	await app.listen(PORT, () => {
