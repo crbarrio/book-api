@@ -26,6 +26,9 @@ import {
 	ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { RolesGuard } from '../auth/guards/roles.guard'; // Importa el guard de rols
+import { Roles } from '../auth/decorators/roles.decorator'; // Importa el decorador de rols
+import { UserRole } from '../users/schemas/user.schema'; // Importa els rols d'usuari
 
 @ApiTags('Llibres') // Agrupa les endpoints a Swagger
 @Controller('books')
@@ -49,7 +52,8 @@ export class BooksController {
 	}
 
 	@Post()
-	@UseGuards(AuthGuard('jwt'))
+	@UseGuards(AuthGuard('jwt'), RolesGuard)
+	@Roles(UserRole.ADMIN)
 	@ApiBearerAuth()
 	@ApiOperation({ summary: 'Crea un nou llibre' })
 	@ApiBody({ type: CreateBookDto, description: 'Dades del llibre a crear' })
@@ -60,6 +64,7 @@ export class BooksController {
 	})
 	@ApiResponse({ status: 400, description: 'Dades invàlides' })
 	@ApiResponse({ status: 401, description: 'No autoritzat' })
+	@ApiResponse({ status: 403, description: 'Accés prohibit' })
 	@ApiResponse({
 		status: 409,
 		description: `L'ISBN ja existeix`,
@@ -77,7 +82,8 @@ export class BooksController {
 	}
 
 	@Put(':id')
-	@UseGuards(AuthGuard('jwt'))
+	@UseGuards(AuthGuard('jwt'), RolesGuard)
+	@Roles(UserRole.ADMIN)
 	@ApiBearerAuth()
 	@ApiOperation({ summary: 'Actualitza un llibre existent' })
 	@ApiParam({ name: 'id', description: 'ID del llibre', type: String })
@@ -88,6 +94,7 @@ export class BooksController {
 	@ApiResponse({ status: 200, description: 'Llibre actualitzat', type: Book })
 	@ApiResponse({ status: 400, description: 'Dades invàlides' })
 	@ApiResponse({ status: 401, description: 'No autoritzat' })
+	@ApiResponse({ status: 403, description: 'Accés prohibit' })
 	@ApiResponse({ status: 404, description: 'Llibre no trobat' })
 	@UsePipes(
 		new ValidationPipe({
@@ -104,12 +111,14 @@ export class BooksController {
 	}
 
 	@Delete(':id')
-	@UseGuards(AuthGuard('jwt'))
+	@UseGuards(AuthGuard('jwt'), RolesGuard)
+	@Roles(UserRole.ADMIN)
 	@ApiBearerAuth()
 	@ApiOperation({ summary: 'Elimina un llibre' })
 	@ApiParam({ name: 'id', description: 'ID del llibre', type: String })
 	@ApiResponse({ status: 204, description: 'Llibre eliminat correctament' })
 	@ApiResponse({ status: 401, description: 'No autoritzat' })
+	@ApiResponse({ status: 403, description: 'Accés prohibit' })
 	@ApiResponse({ status: 404, description: 'Llibre no trobat' })
 	@HttpCode(HttpStatus.NO_CONTENT) // Retorna 204 No Content per a DELETE reeixit
 	async remove(@Param('id') id: string): Promise<void> {

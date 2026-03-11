@@ -1,56 +1,72 @@
-# Book API (NestJS + MongoDB + JWT)
+# Book API (NestJS + MongoDB + JWT + Roles)
 
-API REST para gestionar un catalogo de libros, con autenticacion JWT para operaciones protegidas.
+API REST para gestionar un catalogo de libros con autenticacion JWT y control de acceso por roles.
 
 ## Caracteristicas
 
-- CRUD completo de libros (`create`, `read`, `update`, `delete`).
-- Registro e inicio de sesion de usuarios:
-	- `POST /auth/register`
-	- `POST /auth/login`
-- Proteccion con JWT en rutas sensibles:
-	- `POST /books`
-	- `PUT /books/:id`
-	- `DELETE /books/:id`
-- Password hasheado con `bcrypt`.
-- Campo `password` oculto por defecto en Mongo (`select: false`).
-- Validacion global con `ValidationPipe`:
-	- elimina propiedades no permitidas (`whitelist`)
-	- rechaza propiedades extra (`forbidNonWhitelisted`)
-	- transforma tipos automaticamente (`transform`)
-- Documentacion interactiva con Swagger en `/api-docs`.
-- Persistencia con MongoDB usando Mongoose.
-- Manejo de errores de dominio:
-	- `404 Not Found` cuando un libro no existe
-	- `409 Conflict` cuando existe conflicto de datos (ej: ISBN o username duplicado)
+- CRUD de libros.
+- Registro y login de usuarios con JWT.
+- Passwords hasheadas con `bcrypt`.
+- Autorizacion por roles (`USER`, `ADMIN`) con `RolesGuard` y decorador `@Roles(...)`.
+- Endpoints de escritura de libros restringidos a `ADMIN`.
+- Validacion global con `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`, `transform`).
+- Documentacion Swagger en `/api-docs`.
+- Persistencia en MongoDB con Mongoose.
 
-## Stack tecnologico
+## Roles Implementados
+
+El sistema define estos roles en `src/users/schemas/user.schema.ts`:
+
+- `UserRole.USER = 'user'`
+- `UserRole.ADMIN = 'admin'`
+
+Comportamiento actual:
+
+- Todo usuario nuevo se crea con rol por defecto `user`.
+- Las rutas `POST /books`, `PUT /books/:id` y `DELETE /books/:id` requieren rol `admin`.
+- Si el token no existe o no es valido, la API responde `401`.
+- Si el token es valido pero el usuario no tiene rol requerido, la API responde `403`.
+
+## Matriz De Acceso
+
+- Publico:
+  - `GET /`
+  - `GET /books`
+  - `GET /books/:id`
+  - `POST /auth/login`
+  - `POST /auth/register`
+- Usuario autenticado (`user`):
+  - Sin endpoints exclusivos por ahora
+- Solo `admin`:
+  - `POST /books`
+  - `PUT /books/:id`
+  - `DELETE /books/:id`
+
+## Stack Tecnologico
 
 - Node.js + npm
 - NestJS
 - MongoDB
 - Docker + Docker Compose
-- Passport + JWT
+- Passport (`passport-jwt`)
 - Swagger (OpenAPI)
 
-## Requisitos previos
+## Requisitos Previos
 
-Antes de ejecutar el proyecto necesitas:
-
-- Node.js (recomendado: LTS reciente)
+- Node.js (LTS recomendada)
 - npm
-- Docker Desktop (con Docker Compose habilitado)
+- Docker Desktop con Compose
 
-## Configuracion
+## Variables De Entorno
 
-El proyecto usa variables de entorno en `book-api/.env`:
+Define un archivo `.env` en la raiz de `book-api` con:
 
-- `DB_USER` (usuario root de Mongo en Docker)
-- `DB_PASS` (password root de Mongo en Docker)
-- `MONGODB_URI` (URI de conexion a MongoDB)
-- `PORT` (puerto de la API)
-- `JWT_SECRET` (clave secreta para firmar/verificar tokens)
-- `JWT_EXPIRATION_TIME` (tiempo de expiracion del token, ejemplo: `1h`, `30m`, `7d`)
+- `DB_USER`
+- `DB_PASS`
+- `MONGODB_URI`
+- `PORT`
+- `JWT_SECRET`
+- `JWT_EXPIRATION_TIME`
 
 Ejemplo:
 
@@ -63,161 +79,139 @@ JWT_SECRET=super_secret_key_change_me
 JWT_EXPIRATION_TIME=1h
 ```
 
-## Puesta en marcha
+## Puesta En Marcha
 
-> Importante: primero levanta MongoDB y despues inicia la API.
-
-1. Entra al proyecto:
-
-```bash
-cd book-api
-```
-
-2. Levanta MongoDB:
+1. Levanta MongoDB:
 
 ```bash
 docker compose up -d
 ```
 
-3. Instala dependencias:
+2. Instala dependencias:
 
 ```bash
 npm install
 ```
 
-4. Inicia la API en desarrollo:
+3. Inicia la API:
 
 ```bash
 npm run start:dev
 ```
 
-5. URLs utiles:
+4. Verifica:
 
 - API: `http://localhost:3000`
 - Swagger: `http://localhost:3000/api-docs`
 
-## Flujo rapido de autenticacion
+## Flujo De Auth + Roles
 
-1. Registrar usuario con `POST /auth/register`.
-2. Iniciar sesion con `POST /auth/login` para obtener `access_token`.
-3. Enviar el token en rutas protegidas:
+1. Registra un usuario en `POST /auth/register`.
+2. Haz login en `POST /auth/login` y guarda `access_token`.
+3. Envia el token en rutas protegidas:
 
 ```http
 Authorization: Bearer <access_token>
 ```
 
-En Swagger puedes usar el boton `Authorize` para cargar el token Bearer.
+4. Para probar endpoints `ADMIN`, promueve el usuario en MongoDB.
+
+Ejemplo con `mongosh` dentro del contenedor:
+
+```bash
+docker exec -it mongodb mongosh -u <DB_USER> -p <DB_PASS> --authenticationDatabase admin
+```
+
+Y luego:
+
+```javascript
+use('book-api');
+db.users.updateOne(
+  { username: 'janedoe' },
+  { $set: { roles: ['admin'] } }
+);
+```
 
 ## Endpoints
 
 ### Health
 
-- `GET /`
-	- Respuesta: `Hello World!`
+- `GET /` -> `Hello World!`
 
 ### Auth
 
 - `POST /auth/register`
-	- Registra un nuevo usuario
-	- `201` usuario registrado
-	- `409` username ya existente
+  - Crea usuario
+  - `201` creado
+  - `409` username duplicado
 
-Body de ejemplo:
+Body ejemplo:
 
 ```json
 {
-	"username": "janedoe",
-	"password": "passwordSegura123"
+  "username": "janedoe",
+  "password": "passwordSegura123"
 }
 ```
 
 - `POST /auth/login`
-	- Devuelve JWT
-	- `200` login correcto
-	- `401` credenciales invalidas
+  - Devuelve JWT
+  - `200` OK
+  - `401` credenciales invalidas
 
-Body de ejemplo:
+Body ejemplo:
 
 ```json
 {
-	"username": "janedoe",
-	"password": "passwordSegura123"
+  "username": "janedoe",
+  "password": "passwordSegura123"
 }
 ```
 
-Respuesta de ejemplo:
+Respuesta ejemplo:
 
 ```json
 {
-	"access_token": "eyJhbGciOiJIUzI1Ni..."
+  "access_token": "eyJhbGciOiJIUzI1Ni..."
 }
 ```
 
 ### Books
 
-- `GET /books`
-	- Lista todos los libros (publico)
+- `GET /books` (publico)
+- `GET /books/:id` (publico)
+- `POST /books` (JWT + rol `admin`)
+- `PUT /books/:id` (JWT + rol `admin`)
+- `DELETE /books/:id` (JWT + rol `admin`)
 
-- `GET /books/:id`
-	- Obtiene un libro por ID (publico)
-
-- `POST /books`
-	- Crea un libro (requiere JWT)
-	- `201` creado
-
-- `PUT /books/:id`
-	- Actualiza un libro (requiere JWT)
-	- `200` actualizado
-
-- `DELETE /books/:id`
-	- Elimina un libro (requiere JWT)
-	- `204` sin contenido
-
-## Estructura del recurso Book
-
-Campos:
+## Estructura Del Recurso Book
 
 - `title` *(string, requerido)*
 - `author` *(string, requerido)*
 - `year` *(number, opcional, >= 1000 y <= anio actual)*
-- `isbn` *(string, opcional, unico, ISBN valido)*
+- `isbn` *(string, opcional, unico)*
+- `createdAt`, `updatedAt` *(auto, timestamps)*
 
-Campos automaticos (Mongoose timestamps):
+## Codigos De Error Comunes
 
-- `createdAt`
-- `updatedAt`
+- `400` payload invalido
+- `401` no autenticado
+- `403` autenticado pero sin permisos
+- `404` recurso no encontrado
+- `409` conflicto (ISBN o username duplicado)
 
-## Validaciones y errores comunes
+## Scripts Utiles
 
-- `400 Bad Request`:
-	- campos obligatorios faltantes
-	- tipos invalidos
-	- propiedades extra no permitidas por DTO
-- `401 Unauthorized`:
-	- token ausente/invalido en rutas protegidas
-	- credenciales invalidas en login
-- `404 Not Found`:
-	- libro no encontrado
-- `409 Conflict`:
-	- ISBN duplicado
-	- username duplicado
+- `npm run start`
+- `npm run start:dev`
+- `npm run start:prod`
+- `npm run build`
+- `npm run lint`
+- `npm run test`
+- `npm run test:cov`
+- `npm run test:e2e`
 
-## Scripts utiles
-
-Dentro de `book-api`:
-
-- `npm run start` -> arranque normal
-- `npm run start:dev` -> desarrollo con watch
-- `npm run start:prod` -> ejecutar build de produccion
-- `npm run build` -> compilar proyecto
-- `npm run lint` -> ejecutar linter
-- `npm run test` -> unit tests
-- `npm run test:cov` -> cobertura
-- `npm run test:e2e` -> pruebas e2e
-
-## Detener servicios
-
-Para detener MongoDB:
+## Detener Servicios
 
 ```bash
 docker compose down
@@ -225,12 +219,14 @@ docker compose down
 
 ## Troubleshooting
 
-- Si `npm run start:dev` falla al arrancar:
-	- verifica que exista `.env`
-	- verifica `JWT_SECRET` y `JWT_EXPIRATION_TIME`
-	- verifica que MongoDB este arriba (`docker compose ps`)
-- Si cambias credenciales de Mongo (`DB_USER`/`DB_PASS`), actualiza tambien `MONGODB_URI`.
+- Si falla `npm run start:dev`:
+  - revisa que exista `.env`
+  - revisa `JWT_SECRET` y `JWT_EXPIRATION_TIME`
+  - revisa MongoDB con `docker compose ps`
+- Si cambias `DB_USER` o `DB_PASS`, actualiza tambien `MONGODB_URI`.
+- Si un usuario autenticado no puede crear/editar/eliminar libros, revisa su campo `roles` en MongoDB.
 
 ## Notas
 
-- Esta API no incluye actualmente paginacion, filtros ni busqueda avanzada.
+- Actualmente no hay endpoint administrativo para asignar roles; la promocion a `admin` se hace directamente en base de datos.
+- No hay paginacion ni filtros avanzados en libros por ahora.
