@@ -17,6 +17,7 @@ import { BooksService } from './books.service';
 import { CreateBookDto } from './dto/create-book.dto';
 import { UpdateBookDto } from './dto/update-book.dto';
 import { Book } from './schemas/book.schema';
+import { BookResponseDto } from './dto/book-response.dto';
 import {
 	ApiTags,
 	ApiResponse,
@@ -37,7 +38,11 @@ export class BooksController {
 
 	@Get()
 	@ApiOperation({ summary: 'Obté tots els llibres' })
-	@ApiResponse({ status: 200, description: 'Llistat de llibres', type: [Book] })
+	@ApiResponse({
+		status: 200,
+		description: 'Llistat de llibres',
+		type: [BookResponseDto],
+	})
 	async findAll(): Promise<Book[]> {
 		return this.booksService.findAll();
 	}
@@ -45,7 +50,11 @@ export class BooksController {
 	@Get(':id')
 	@ApiOperation({ summary: 'Obté un llibre per ID' })
 	@ApiParam({ name: 'id', description: 'ID del llibre', type: String })
-	@ApiResponse({ status: 200, description: 'Dades del llibre', type: Book })
+	@ApiResponse({
+		status: 200,
+		description: 'Dades del llibre',
+		type: BookResponseDto,
+	})
 	@ApiResponse({ status: 404, description: 'Llibre no trobat' })
 	async findOne(@Param('id') id: string): Promise<Book> {
 		return this.booksService.findOne(id);
@@ -60,7 +69,7 @@ export class BooksController {
 	@ApiResponse({
 		status: 201,
 		description: 'Llibre creat correctament',
-		type: Book,
+		type: BookResponseDto,
 	})
 	@ApiResponse({ status: 400, description: 'Dades invàlides' })
 	@ApiResponse({ status: 401, description: 'No autoritzat' })
@@ -91,7 +100,11 @@ export class BooksController {
 		type: UpdateBookDto,
 		description: 'Dades del llibre a actualitzar',
 	})
-	@ApiResponse({ status: 200, description: 'Llibre actualitzat', type: Book })
+	@ApiResponse({
+		status: 200,
+		description: 'Llibre actualitzat',
+		type: BookResponseDto,
+	})
 	@ApiResponse({ status: 400, description: 'Dades invàlides' })
 	@ApiResponse({ status: 401, description: 'No autoritzat' })
 	@ApiResponse({ status: 403, description: 'Accés prohibit' })

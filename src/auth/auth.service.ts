@@ -2,6 +2,15 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { RegisterUserDto, LoginUserDto } from './dto/auth.dto';
+import { randomBytes } from 'crypto';
+
+interface GoogleAuthUser {
+	email: string;
+	firstName?: string;
+	lastName?: string;
+	picture?: string;
+	googleId: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -34,6 +43,29 @@ export class AuthService {
 		}
 
 		// El payload del JWT hauria de ser lleuger i no contenir informació sensible
+		const payload = { username: user.username, sub: String(user._id) };
+		return {
+			access_token: await this.jwtService.signAsync(payload),
+		};
+	}
+
+	async googleLogin(
+		googleUser: GoogleAuthUser,
+	): Promise<{ access_token: string }> {
+		const username = googleUser.email.toLowerCase();
+		let user = await this.usersService.findOne(username);
+
+		// Si és el primer login amb Google, creem un usuari local amb password aleatòria.
+		if (!user) {
+			const generatedPassword = randomBytes(32).toString('hex');
+			await this.usersService.create(username, generatedPassword);
+			user = await this.usersService.findOne(username);
+		}
+
+		if (!user) {
+			throw new UnauthorizedException("No s'ha pogut autenticar amb Google");
+		}
+
 		const payload = { username: user.username, sub: String(user._id) };
 		return {
 			access_token: await this.jwtService.signAsync(payload),

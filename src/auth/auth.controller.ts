@@ -1,20 +1,61 @@
 import {
 	Controller,
 	Post,
+	Get,
 	Body,
+	Req,
 	HttpCode,
 	HttpStatus,
 	UsePipes,
 	ValidationPipe,
+	UseGuards,
 } from '@nestjs/common';
+
 import { AuthService } from './auth.service';
+import { AuthGuard } from '@nestjs/passport';
 import { RegisterUserDto, LoginUserDto } from './dto/auth.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { Request } from 'express';
+
+interface GoogleAuthUser {
+	email: string;
+	firstName?: string;
+	lastName?: string;
+	picture?: string;
+	googleId: string;
+}
+
+interface GoogleAuthRequest extends Request {
+	user: GoogleAuthUser;
+}
 
 @ApiTags('Autenticació') // Agrupa les rutes a Swagger
 @Controller('auth')
 export class AuthController {
 	constructor(private authService: AuthService) {}
+
+	@Get('google')
+	@UseGuards(AuthGuard('google')) // Utilitza la GoogleStrategy per aquesta ruta
+	@ApiOperation({ summary: 'Inicia sessió amb Google' })
+	@ApiResponse({ status: 302, description: 'Redirecció cap a Google OAuth' })
+	@ApiResponse({ status: 401, description: 'No autoritzat' })
+	googleAuth(): void {
+		// Aquesta ruta redirigirà a Google per iniciar sessió
+	}
+
+	@Get('google/callback')
+	@UseGuards(AuthGuard('google'))
+	@ApiOperation({ summary: "Callback d'autenticació amb Google" })
+	@ApiResponse({
+		status: 200,
+		description: 'Login correcte amb Google i emissió de JWT',
+		schema: { example: { access_token: 'eyJhbGciOiJIUzI1Ni...' } },
+	})
+	@ApiResponse({ status: 401, description: 'No autoritzat' })
+	@HttpCode(HttpStatus.OK)
+	async googleAuthCallback(@Req() req: GoogleAuthRequest) {
+		return this.authService.googleLogin(req.user);
+	}
 
 	@Post('register')
 	@ApiOperation({ summary: 'Registra un nou usuari' })

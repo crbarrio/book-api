@@ -1,11 +1,13 @@
-# Book API (NestJS + MongoDB + JWT + Roles)
+# Book API (NestJS + MongoDB + JWT + Google OAuth + Roles)
 
-API REST para gestionar un catalogo de libros con autenticacion JWT y control de acceso por roles.
+API REST para gestionar un catalogo de libros con autenticacion local (JWT), autenticacion con Google OAuth 2.0 y control de acceso por roles.
 
 ## Caracteristicas
 
 - CRUD de libros.
-- Registro y login de usuarios con JWT.
+- Registro y login local de usuarios con JWT.
+- Login con Google OAuth en `GET /auth/google`.
+- Emision de JWT tambien en el callback de Google (`GET /auth/google/callback`).
 - Passwords hasheadas con `bcrypt`.
 - Autorizacion por roles (`USER`, `ADMIN`) con `RolesGuard` y decorador `@Roles(...)`.
 - Endpoints de escritura de libros restringidos a `ADMIN`.
@@ -35,6 +37,8 @@ Comportamiento actual:
   - `GET /books/:id`
   - `POST /auth/login`
   - `POST /auth/register`
+  - `GET /auth/google`
+  - `GET /auth/google/callback` (solo despues de autenticacion en Google)
 - Usuario autenticado (`user`):
   - Sin endpoints exclusivos por ahora
 - Solo `admin`:
@@ -48,7 +52,7 @@ Comportamiento actual:
 - NestJS
 - MongoDB
 - Docker + Docker Compose
-- Passport (`passport-jwt`)
+- Passport (`passport-jwt`, `passport-google-oauth20`)
 - Swagger (OpenAPI)
 
 ## Requisitos Previos
@@ -56,6 +60,7 @@ Comportamiento actual:
 - Node.js (LTS recomendada)
 - npm
 - Docker Desktop con Compose
+- Credenciales OAuth 2.0 de Google Cloud Console
 
 ## Variables De Entorno
 
@@ -67,6 +72,9 @@ Define un archivo `.env` en la raiz de `book-api` con:
 - `PORT`
 - `JWT_SECRET`
 - `JWT_EXPIRATION_TIME`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_CALLBACK_URL` (opcional, por defecto `http://localhost:3000/auth/google/callback`)
 
 Ejemplo:
 
@@ -77,7 +85,19 @@ MONGODB_URI=mongodb://your_username:your_password@localhost:27017/book-api?authS
 PORT=3000
 JWT_SECRET=super_secret_key_change_me
 JWT_EXPIRATION_TIME=1h
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
 ```
+
+## Configuracion Google Cloud
+
+En tu OAuth Client ID de Google, agrega:
+
+- `Authorized redirect URI`:
+  - `http://localhost:3000/auth/google/callback`
+
+Si usas otro host/puerto, actualiza `GOOGLE_CALLBACK_URL` y la URI autorizada en Google Cloud para que coincidan exactamente.
 
 ## Puesta En Marcha
 
@@ -104,7 +124,9 @@ npm run start:dev
 - API: `http://localhost:3000`
 - Swagger: `http://localhost:3000/api-docs`
 
-## Flujo De Auth + Roles
+## Flujo De Auth (JWT + Google) + Roles
+
+### Opcion 1: Login Local
 
 1. Registra un usuario en `POST /auth/register`.
 2. Haz login en `POST /auth/login` y guarda `access_token`.
@@ -114,7 +136,16 @@ npm run start:dev
 Authorization: Bearer <access_token>
 ```
 
-4. Para probar endpoints `ADMIN`, promueve el usuario en MongoDB.
+### Opcion 2: Login Con Google
+
+1. Abre en navegador `GET /auth/google`.
+2. Google autentica al usuario y redirige a `GET /auth/google/callback`.
+3. El callback devuelve `{ access_token }`.
+4. Usa ese token Bearer para rutas protegidas.
+
+### Promocion A Admin Para Pruebas
+
+Para probar endpoints `ADMIN`, promueve el usuario en MongoDB.
 
 Ejemplo con `mongosh` dentro del contenedor:
 
@@ -141,7 +172,7 @@ db.users.updateOne(
 ### Auth
 
 - `POST /auth/register`
-  - Crea usuario
+  - Crea usuario local
   - `201` creado
   - `409` username duplicado
 
@@ -155,7 +186,7 @@ Body ejemplo:
 ```
 
 - `POST /auth/login`
-  - Devuelve JWT
+  - Login local
   - `200` OK
   - `401` credenciales invalidas
 
@@ -176,6 +207,15 @@ Respuesta ejemplo:
 }
 ```
 
+- `GET /auth/google`
+  - Inicia OAuth con Google
+  - `302` redireccion a Google
+
+- `GET /auth/google/callback`
+  - Callback OAuth de Google
+  - `200` devuelve JWT (`access_token`)
+  - `401` no autorizado
+
 ### Books
 
 - `GET /books` (publico)
@@ -194,6 +234,7 @@ Respuesta ejemplo:
 
 ## Codigos De Error Comunes
 
+- `302` redireccion OAuth (inicio de login Google)
 - `400` payload invalido
 - `401` no autenticado
 - `403` autenticado pero sin permisos
@@ -222,11 +263,16 @@ docker compose down
 - Si falla `npm run start:dev`:
   - revisa que exista `.env`
   - revisa `JWT_SECRET` y `JWT_EXPIRATION_TIME`
+  - revisa `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`
   - revisa MongoDB con `docker compose ps`
+- Si Google devuelve `redirect_uri_mismatch`:
+  - revisa `GOOGLE_CALLBACK_URL`
+  - revisa la URI autorizada en Google Cloud Console
 - Si cambias `DB_USER` o `DB_PASS`, actualiza tambien `MONGODB_URI`.
 - Si un usuario autenticado no puede crear/editar/eliminar libros, revisa su campo `roles` en MongoDB.
 
 ## Notas
 
 - Actualmente no hay endpoint administrativo para asignar roles; la promocion a `admin` se hace directamente en base de datos.
+- En el login con Google, si el usuario no existe, se crea automaticamente usando el email de Google como `username`.
 - No hay paginacion ni filtros avanzados en libros por ahora.
